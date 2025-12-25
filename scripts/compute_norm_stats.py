@@ -88,7 +88,9 @@ def create_rlds_dataloader(
 
 def main(config_name: str, max_frames: int | None = None):
     config = _config.get_config(config_name)
+    print(config.data)
     data_config = config.data.create(config.assets_dirs, config.model)
+    print(f"Computing stats for keys: {', '.join(config_name)}")
 
     if data_config.rlds_data_dir is not None:
         data_loader, num_batches = create_rlds_dataloader(
@@ -101,7 +103,7 @@ def main(config_name: str, max_frames: int | None = None):
 
     keys = ["state", "actions"]
     stats = {key: normalize.RunningStats() for key in keys}
-
+    
     for batch in tqdm.tqdm(data_loader, total=num_batches, desc="Computing stats"):
         for key in keys:
             stats[key].update(np.asarray(batch[key]))

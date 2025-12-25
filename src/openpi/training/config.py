@@ -276,7 +276,76 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
             model_transforms=model_transforms,
             action_sequence_keys=self.action_sequence_keys,
         )
+import numpy as np
+@dataclasses.dataclass(frozen=True)
+class PadStateTransform(_transforms.DataTransformFn):
+    """
+    Pads the state vector from 7 dimensions to 8 dimensions.
+    This ensures it matches the action shape (Pose + Gripper) so DeltaActions can run.
+    """
+    def __call__(self, data: dict) -> dict:
+        state = data["state"]
+        # Check if we have a 7-dim state (Pose only)
+        # Using ... allows this to work for both single items and batches
+        if state.shape[-1] == 7:
+            # Create a zero padding of shape (..., 1) with same dtype/backend as state
+            padding = np.zeros_like(state[..., :1])
+            # Concatenate to make state (..., 8)
+            data["state"] = np.concatenate([state, padding], axis=-1)
+        return data
 
+@dataclasses.dataclass(frozen=True)
+class LeRobotCustomDataConfig(DataConfigFactory):
+    # ... existing fields ...
+    use_delta_actions: bool = True
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        # 1. Repack Transform
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "observation/image": "image",
+                        "observation/state": "state",
+                        "observation/wrist_image": "image",
+
+                        "actions": "actions",
+                        "prompt": "task",
+                    }
+                )
+            ]
+        )
+
+        # 2. Base Data Transforms
+        data_transforms = _transforms.Group(
+            inputs=[libero_policy.LiberoInputs(model_type=model_config.model_type)],
+            outputs=[libero_policy.LiberoOutputs()],
+        )
+
+        # 3. Delta Action Conversion with Padding
+        if self.use_delta_actions:
+            # Mask for 8 dimensions: 7 Deltas (Pose), 1 Absolute (Gripper)
+            delta_action_mask = _transforms.make_bool_mask(7, -1)
+            
+            data_transforms = data_transforms.push(
+                inputs=[
+                    # CRITICAL: Run PadStateTransform first to make state (8,)
+                    PadStateTransform(), 
+                    # Now DeltaActions works because state (8,) matches mask (8,)
+                    _transforms.DeltaActions(delta_action_mask)
+                ],
+                outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+            )
+
+        model_transforms = ModelTransformFactory()(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+        )
 
 @dataclasses.dataclass(frozen=True)
 class LeRobotLiberoDataConfig(DataConfigFactory):
@@ -929,6 +998,57 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=20_000,
+    ),
+    TrainConfig(
+        name="pi05_custom_absolute_pose_lora",
+        
+        # 1. Model Configuration: Pi-0.5
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            #action_dim=7,
+            action_horizon=10, 
+            discrete_state_input=False,
+            paligemma_variant="gemma_2b_lora" 
+ 
+        ),
+
+        # 2. Data Configuration
+        # Uses the class defined in the previous step to handle 
+        # the specific repack and delta conversion for your 8-dim actions.
+        data=LeRobotCustomDataConfig(
+            repo_id="shrg7/franka",
+            base_config=DataConfig(prompt_from_task=True),
+            # Crucial: Enables the logic we wrote to convert Absolute Pose -> Delta
+            use_delta_actions=True, 
+        ),
+
+        # 3. Weights and Optimization
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        
+        # LoRA/Finetune specific settings:
+        # We turn off EMA for finetuning to save memory and converge faster on small datasets.
+        ema_decay=None, 
+        freeze_filter=pi0_config.Pi0Config(
+            pi05=True,
+            #action_dim=7,
+            action_horizon=10,
+            discrete_state_input=False,
+            paligemma_variant="gemma_2b_lora"
+        ).get_freeze_filter(),
+        
+        # Conservative batch size for Pi-0.5 fine-tuning
+        batch_size=32, 
+        
+        optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
+        
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=5e-5,
+            decay_steps=30_000, # Matches num_train_steps
+            decay_lr=1e-6,
+        ),
+        
+        num_train_steps=30_000,
     ),
     #
     # Debugging configs.

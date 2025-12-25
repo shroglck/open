@@ -1,0 +1,88 @@
+<mujoco model="franka_pick_place">
+    <!--
+        Franka Panda pick-and-place scene for behavioral cloning baseline.
+        The arm model references the MuJoCo Menagerie Franka Panda asset.  The
+        repository does not redistribute that file; download the MJCF bundle from
+        https://github.com/deepmind/mujoco_menagerie and place the
+        `franka_emika_panda` directory alongside this XML (see README for
+        detailed instructions).
+    -->
+    <compiler angle="degree" coordinate="local" inertiafromgeom="true"/>
+    <option timestep="0.002" gravity="0 0 -9.81"/>
+
+    <include file="franka_emika_panda/panda_position.xml"/>
+
+    <size njmax="2000" nconmax="200"/>
+
+    <default>
+        <default class="object">
+            <geom type="sphere" size="0.025" density="1500" rgba="1 1 1 1" contype="1" conaffinity="1" friction="1 0.3 0.1"/>
+            <joint type="free" damping="1"/>
+        </default>
+        <default class="occluder">
+            <geom type="box" size="0.03 0.03 0.05" rgba="0.2 0.2 0.2 1"/>
+            <joint type="free" damping="1"/>
+        </default>
+    </default>
+
+    <asset>
+        <texture type="skybox" builtin="gradient" rgb1="0.4 0.4 0.5" rgb2="0.0 0.0 0.0" width="512" height="512"/>
+        <texture name="table_tex" type="2d" builtin="checker" rgb1="0.15 0.15 0.15" rgb2="0.18 0.18 0.18" width="256" height="256"/>
+        <material name="table_mat" texture="table_tex" specular="0.1" shininess="0.3"/>
+    </asset>
+
+    <worldbody>
+        <light name="top_light" pos="0 0 2" dir="0 0 -1" diffuse="0.6 0.6 0.6" ambient="0.4 0.4 0.4"/>
+
+        <geom name="floor" type="plane" size="2 2 0.1" rgba="0.9 0.9 0.9 1"/>
+
+        <body name="table" pos="0.5 0 0">
+            <geom name="table_geom" type="box" size="0.4 0.4 0.02" pos="0 0 0.02" material="table_mat"/>
+        </body>
+
+        <!-- Target bin -->
+        <body name="goal_bin" pos="0.8 0.25 0.08">
+            <geom type="box" size="0.08 0.08 0.02" rgba="0.2 0.3 0.8 1" contype="1" conaffinity="1"/>
+        </body>
+
+        <!-- Movable objects -->
+        <body name="object_body_red" childclass="object" pos="0.5 0 0.03">
+            <joint/>
+            <geom name="object_geom_red" rgba="0.9 0.2 0.2 1"/>
+            <site name="object_site_red" pos="0 0 0" size="0.01" rgba="1 0 0 0"/>
+        </body>
+
+        <body name="object_body_green" childclass="object" pos="0.55 -0.1 0.03">
+            <joint/>
+            <geom name="object_geom_green" rgba="0.2 0.9 0.2 1"/>
+            <site name="object_site_green" pos="0 0 0" size="0.01" rgba="0 1 0 0"/>
+        </body>
+
+        <body name="object_body_blue" childclass="object" pos="0.45 0.1 0.03">
+            <joint/>
+            <geom name="object_geom_blue" rgba="0.2 0.3 0.9 1"/>
+            <site name="object_site_blue" pos="0 0 0" size="0.01" rgba="0 0 1 0"/>
+        </body>
+
+        <body name="object_body_yellow" childclass="object" pos="0.5 -0.15 0.03">
+            <joint/>
+            <geom name="object_geom_yellow" rgba="0.95 0.9 0.2 1"/>
+            <site name="object_site_yellow" pos="0 0 0" size="0.01" rgba="1 1 0 0"/>
+        </body>
+
+        <body name="object_body_purple" childclass="object" pos="0.55 0.15 0.03">
+            <joint/>
+            <geom name="object_geom_purple" rgba="0.6 0.3 0.8 1"/>
+            <site name="object_site_purple" pos="0 0 0" size="0.01" rgba="0.6 0 0.6 0"/>
+        </body>
+
+        <!-- Occluder introduced in hindered mode -->
+        <body name="occluder_body" childclass="occluder" pos="1 0 -1">
+            <joint/>
+            <geom name="occluder_geom"/>
+        </body>
+
+        <!-- Overhead camera looking straight down -->
+        <camera name="top" mode="fixed" pos="0.6 0 1.0" euler="180 0 0" fovy="55"/>
+    </worldbody>
+</mujoco>

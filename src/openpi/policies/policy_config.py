@@ -71,7 +71,7 @@ def create_trained_policy(
             pytorch_device = "cuda" if torch.cuda.is_available() else "cpu"
         except ImportError:
             pytorch_device = "cpu"
-
+    print("Ended")
     return _policy.Policy(
         model,
         transforms=[

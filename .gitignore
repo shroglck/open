@@ -3,7 +3,10 @@ assets/
 checkpoints/
 data/
 wandb/
-
+eval_vids/
+big_vision/
+openpi-assets/
+.env/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -9,7 +9,7 @@ from transformers import AutoProcessor
 
 import openpi.models.utils.fsq_tokenizer as fsq_tokenizer
 import openpi.shared.download as download
-
+from pathlib import Path
 
 class PaligemmaTokenizer:
     def __init__(self, max_len: int = 48):
